@@ -3,3 +3,5 @@ frontend/node_modules/
 frontend/node_modules/
 frontend/build/
 frontend/dist/
+firebase_connection/__pycache__/
+firebase_connection/*.json
