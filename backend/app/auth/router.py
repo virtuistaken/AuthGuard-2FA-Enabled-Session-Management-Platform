@@ -9,7 +9,8 @@ from app.db.session import get_db
 from app.users import models, schemas
 from app.core import security
 from app.core.config import settings
-
+from fastapi import Form
+import pyotp
 # Rate Limiter Tanımlaması
 limiter = Limiter(key_func=get_remote_address)
 
@@ -30,18 +31,18 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-# --- 2. LOGIN (Giriş Yap) ---
+# --- 2. LOGIN (DÜZELTİLMİŞ & GÜVENLİ VERSİYON) ---
 @router.post("/login", response_model=schemas.Token)
-@limiter.limit("5/minute") # Dakikada maksimum 5 deneme (Brute-Force Koruması)
+@limiter.limit("5/minute")
 def login(
     request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(), 
-    totp_code: str = None, # 2FA Kodu (Opsiyonel)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    totp_code: str = Form(None), # <--- DÜZELTME 1: Form verisi olarak alıyoruz
     db: Session = Depends(get_db)
 ):
+    # 1. Kullanıcı Doğrulama
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
     
-    # Kullanıcı yoksa veya şifre yanlışsa
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,23 +50,36 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 2FA Kontrolü (Eğer kullanıcıda aktifse)
+    # 2. 2FA Kontrolü (GERÇEK DOĞRULAMA)
     if user.is_2fa_enabled:
         if not totp_code:
-            raise HTTPException(status_code=403, detail="2FA code required")
-        
-        # Şifreli secret'ı çöz ve doğrula
-        decrypted_secret = security.decrypt_data(user.totp_secret)
-        if not security.verify_totp(decrypted_secret, totp_code):
+            raise HTTPException(status_code=403, detail="2FA code required") # Kod gelmediyse reddet
+
+        try:
+            # DÜZELTME 2: Önce veritabanındaki şifreli secret'ı ÇÖZÜYORUZ
+            decrypted_secret = security.decrypt_data(user.totp_secret)
+            
+            # Çözülmüş (saf) secret ile doğrulayıcı oluşturuyoruz
+            totp = pyotp.TOTP(decrypted_secret)
+
+            # Debug için (İsteğe bağlı - çalışınca silersin)
+            print(f"Sunucu Beklenen Kod: {totp.now()} | Gelen Kod: {totp_code}")
+
+            # valid_window=1: Saat farkı toleransı (+-30 saniye)
+            if not totp.verify(totp_code, valid_window=1):
+                raise HTTPException(status_code=401, detail="Invalid 2FA code")
+                
+        except Exception as e:
+            print(f"2FA Hatası: {str(e)}")
+            # Şifre çözme hatası veya başka bir sorun olursa güvenli şekilde reddet
             raise HTTPException(status_code=401, detail="Invalid 2FA code")
 
-    # Tokenları Üret
+    # 3. Token Üretme
     access_token = security.create_access_token(
-        data={"sub": user.email}, 
+        data={"sub": user.email},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "refresh_token": "not_implemented_yet", "token_type": "bearer"}
-
 # --- 3. ENABLE 2FA (2FA Aktifleştir) ---
 @router.post("/enable-2fa", response_model=schemas.Enable2FAResponse)
 def enable_2fa(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
