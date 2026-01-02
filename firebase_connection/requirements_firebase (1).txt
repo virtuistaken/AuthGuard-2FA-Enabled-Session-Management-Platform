@@ -1,0 +1,24 @@
+# Firebase & Firestore
+firebase-admin==6.3.0
+
+# Encryption (Hafta 2)
+cryptography==41.0.7
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# 2FA - TOTP Implementation (Hafta 3)
+pyotp==2.9.0          # RFC 6238 TOTP algorithm
+qrcode[pil]==7.4.2    # QR code generation with PIL support
+
+# Password Hashing (Hafta 4)
+bcrypt==4.1.2
+
+# JWT - Session Management (Hafta 4)
+python-jose[cryptography]==3.3.0  # JWT encoding/decoding
+
+# FastAPI - API Server (Hafta 4)
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+email-validator==2.1.0

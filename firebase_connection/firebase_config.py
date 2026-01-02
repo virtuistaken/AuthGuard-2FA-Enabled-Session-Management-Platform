@@ -23,7 +23,7 @@ class FirebaseConfig:
             # Firebase uygulamasını başlat
             firebase_admin.initialize_app(cred)
             
-            print(" Firebase bağlantısı başarılı!")
+            print("✅ Firebase bağlantısı başarılı!")
         
         # Firestore database referansı
         cls._db = firestore.client()
@@ -40,7 +40,7 @@ class FirebaseConfig:
 if __name__ == "__main__":
     try:
         db = FirebaseConfig.initialize()
-        print(" Firestore database hazır!")
+        print("🔥 Firestore database hazır!")
         print(f"Database instance: {db}")
     except Exception as e:
-        print(f" Hata: {e}")
+        print(f"❌ Hata: {e}")
